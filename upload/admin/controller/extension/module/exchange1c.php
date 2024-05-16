@@ -2132,9 +2132,12 @@ class ControllerExtensionModuleExchange1c extends Controller {
 			return "ERROR: 1004";
 		}
 
-		if (!is_dir($cache)) {
-			mkdir($cache);
-		}
+        $result = $this->modeInit();
+
+        if (count($result) < 2) {
+            $this->error['warning'] = "Ошибка инициализации перед загрузкой файла: " . $filename;
+            return false;
+        }
 
 		if (!@move_uploaded_file($uploaded_file, $cache . $filename_decode)) {
 			$this->log("Загруженый файл не удалось переместить в: " . $cache . $filename_decode);
@@ -2152,13 +2155,6 @@ class ControllerExtensionModuleExchange1c extends Controller {
 			//$this->log($path_info, 2);
 			$filename = $path_info['filename'];
 			$extension = $path_info['extension'];
-
-			$result = $this->modeInit();
-
-			if (count($result) < 2) {
-				$this->error['warning'] = "Ошибка инициализации перед загрузкой файла: " . $filename;
-				return false;
-			}
 
             $zip_support = class_exists('ZipArchive') ? true : false;
 
