@@ -2853,8 +2853,7 @@ class ModelExtensionExchange1c extends Model {
 	 */
 	private function parseRequisite($xml, &$data) {
         
-		if ($this->config->get('exchange1c_product_model_in_requisite_tag'))
-			$product_model_in_requisite_tag = $this->config->get('exchange1c_product_model_in_requisite_tag');
+        $product_model_in_requisite_tag = $this->config->get('exchange1c_product_model_in_requisite_tag');
 
 		$this->log("Начато чтение реквизитов...", 2);
 		//$this->log($xml, 2);
@@ -2865,12 +2864,6 @@ class ModelExtensionExchange1c extends Model {
 			$name 	= trim((string)$requisite->Наименование);
 			$value 	= trim((string)$requisite->Значение);
 
-			// check var $product_model_in_requisite_tag is set
-			if (isset($product_model_in_requisite_tag)) {
-				$data['model'] = htmlspecialchars($value);
-				$this->log("> Реквизит: " . $name . " со значением " . $data['model'] . " записан в КОД товара", 2);
-			}
-			else {
 			switch ($name){
 				case 'Вес':
 					$data['weight'] = $value ? (float)str_replace(',','.',$value) : 0;
@@ -2896,9 +2889,6 @@ class ModelExtensionExchange1c extends Model {
 						$this->log("> Реквизит: " . $name . " = " . $data['manufacturer_name'], 2);
 					}
 				break;
-				/*
-				* выпадает ошибка если не установлен флаг config->get('exchange1c_product_model_in_requisite_tag'):
-				* "Notice: Undefined variable: product_model_in_requisite_tag in /home/.../public_html/admin/model/extension/exchange1c.php on line 2893"
 				
 				case $product_model_in_requisite_tag:
 					// $data['code'] = $this->parseCode($value);
@@ -2906,13 +2896,12 @@ class ModelExtensionExchange1c extends Model {
 					$data['model'] = htmlspecialchars($value);
 					$this->log("> Реквизит: " . $name . " со значением " . $data['model'] . " записан в КОД товара", 2);
 				break;
-				*/
-				case 'ISBN':
+
+            case 'ISBN':
 					$data['isbn'] = htmlspecialchars($value);
 					$this->log("> Реквизит: " . $name . " = " . $data['isbn'], 2);
 				break;
 			} // switch
-			} // if-else
 		} // foreach()
 
 		$this->log("Реквизитов прочитано: " . $count, 2);
