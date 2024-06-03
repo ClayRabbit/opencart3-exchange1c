@@ -6689,7 +6689,29 @@ class ModelExtensionExchange1c extends Model {
 
 	} // setOrderProductOptions()
 
-
+    	/**
+	 * ver 1
+	 * update 2024-05-29
+	 * Добавляет товар в заказ
+	 */
+	private function addOrderProduct($order_id, $doc_product, $order_product_id = 0) {
+        if ($order_product_id) {
+            $this->query("DELETE FROM `" . DB_PREFIX . "order_option` WHERE `order_product_id` = " . (int)$order_product_id);
+        }
+        $this->query("REPLACE INTO `" . DB_PREFIX . "order_product`
+            SET `order_product_id` = " . ($order_product_id ? (int)$order_product_id : "NULL" ) . ",
+            `product_id` = " . (int)$doc_product['product_id'] . ",
+            `order_id` = " . (int)$order_id . ",
+            `name` = '" . $this->db->escape($doc_product['name']) . "',
+            `model` = '" . $this->db->escape($doc_product['model']) . "',
+            `price` = " . (float)$doc_product['price'] . ",
+            `quantity` = " . (float)$doc_product['quantity'] . ",
+            `total` = " . (float)$doc_product['total']
+        );
+        $this->log("Товар '" . $doc_product['name'] . "' добавлен в заказ #" . $doc['order_id'], 2);
+        
+        return $this->db->getLastId();
+    }
 	/**
 	 * ver 1
 	 * update 2018-03-20
@@ -6916,8 +6938,6 @@ class ModelExtensionExchange1c extends Model {
 			if ($this->ERROR) return false;
 		}
 
-		$update = false;
-
 		$old_products = $products;
 
 		// Сумма товаров, нужна для расчета стоимости доставки
@@ -6944,7 +6964,10 @@ class ModelExtensionExchange1c extends Model {
 					// Сравним товар
 					if ($product['product_id'] != $doc_product['product_id']) {
 						// заменим товар
+    					$this->log("Замняем товар '" . $product['name'] . "' в документе");
+                        $this->addOrderProduct($doc['order_id'], $doc_product, $product['order_product_id']);
 					} else {
+                		$update = false;
 						$num_str = $key+1;
 						$this->log("В строке " . $num_str . " товар не изменился");
 
@@ -6970,35 +6993,25 @@ class ModelExtensionExchange1c extends Model {
 					// Тестовая строка для принудительного обновления товаров в документе
 					//$this->updateOrderProduct($doc['order_id'], $doc_product, $product['order_product_id']);
 					//$this->errorLog(5000);
-
+                    
+                    unset($old_products[$key]);
 				} else {
 					// Добавить строчку
 					$this->log("Добавление товара '" . $doc_product['name'] . "' в документ");
 
-					$this->query("INSERT INTO `" . DB_PREFIX . "order_product`
-						SET `product_id` = " . (int)$doc_product['product_id'] . ",
-						`order_id` = " . (int)$doc['order_id'] . ",
-						`name` = '" . $this->db->escape($doc_product['name']) . "',
-						`model` = '" . $this->db->escape($doc_product['model']) . "',
-						`price` = " . (float)$doc_product['price'] . ",
-						`quantity` = " . (float)$doc_product['quantity'] . ",
-						`total` = " . (float)$doc_product['total']
-					);
-					$this->log("Товар '" . $doc_product['name'] . "' добавлен в заказ #" . $doc['order_id'], 2);
-					$order_product_id = $this->db->getLastId();
-
-					$update = true;
-				}
+					$order_product_id = $this->addOrderProduct($doc['order_id'], $doc_product);
+                }
 
 
 			} // foreach
 
-//			foreach ($old_products as $product) {
-//				$this->query("DELETE FROM `" . DB_PREFIX . "order_product` WHERE `order_product_id` = " . (int)$product['order_product_id']);
-//				$this->query("DELETE FROM `" . DB_PREFIX . "order_option` WHERE `order_product_id` = " . (int)$product['order_product_id']);
-//				$this->log("Удалены товары и опции в заказе",2);
-//				if ($this->ERROR) return false;
-//			}
+            // Удаляем лишние позиции из заказа
+			foreach ($old_products as $product) {
+				$this->query("DELETE FROM `" . DB_PREFIX . "order_product` WHERE `order_product_id` = " . (int)$product['order_product_id']);
+				$this->query("DELETE FROM `" . DB_PREFIX . "order_option` WHERE `order_product_id` = " . (int)$product['order_product_id']);
+                $this->log("Товар '" . $product['name'] . "' удален из заказа #" . $doc['order_id'], 2);
+				if ($this->ERROR) return false;
+			}
 		} // if
 
 		if ($doc['total'] != $order['total']) {
