@@ -87,32 +87,6 @@ $_query = $this->db->query("SELECT SUM(`quantity`) AS total FROM " . DB_PREFIX .
 $data['quantity'] = $_query->row['total'];
 	  ]]></add>
     </operation>
-	<!--operation>
-      <search><![CDATA[$modify_fields1 = $this->compareArraysData($data, $old_data, $no_update);]]></search>
-      <add position="before" offset="1"><![CDATA[
-$this->log('multistore1', 2);
-foreach ($this->config->get('_guid2multistore') as $_guid => $multistore_id) {
-	$this->db->query("DELETE FROM " . DB_PREFIX . "product_to_multistore WHERE multistore_id = " . (int)$multistore_id . " AND product_id = " . (int)$product_id);
-	$_quantity = isset($data['multistores'][$_guid]) ? $data['multistores'][$_guid] : 0;
-	$this->db->query("INSERT INTO " . DB_PREFIX . "product_to_multistore SET product_id = " . (int)$product_id . ", quantity = " . (int)$_quantity . ", multistore_id = " . (int)$multistore_id);
-}
-$_query = $this->db->query("SELECT SUM(`quantity`) AS total FROM " . DB_PREFIX . "product_to_multistore WHERE product_id = '" . (int)$product_id . "'"); 
-$data['quantity'] = $_query->row['total'];
-	  ]]></add>
-    </operation>
-	<operation>
-      <search><![CDATA[$fields = $this->prepareQueryProduct($data);]]></search>
-      <add position="before" offset="1"><![CDATA[
-$this->log('multistore2', 2);
-foreach ($this->config->get('_guid2multistore') as $_guid => $multistore_id) {
-	$this->db->query("DELETE FROM " . DB_PREFIX . "product_to_multistore WHERE multistore_id = " . (int)$multistore_id . " AND product_id = " . (int)$product_id);
-	$_quantity = isset($data['multistores'][$_guid]) ? $data['multistores'][$_guid] : 0;
-	$this->db->query("INSERT INTO " . DB_PREFIX . "product_to_multistore SET product_id = " . (int)$product_id . ", quantity = " . (int)$_quantity . ", multistore_id = " . (int)$multistore_id);
-}
-$_query = $this->db->query("SELECT SUM(`quantity`) AS total FROM " . DB_PREFIX . "product_to_multistore WHERE product_id = '" . (int)$product_id . "'"); 
-$data['quantity'] = $_query->row['total'];
-	  ]]></add>
-    </operation-->
 </file>
   
 <file path="admin/controller/extension/module/exchange1c.php">
@@ -174,22 +148,6 @@ if (isset($this->request->post['exchange1c_multistore'])) {
                 </td>
             </tr>
         {% endfor %}
-            <!--tr id="exchange1c_multistore[{{ exchange1c_multistore|length }}]" class="clone-row" data-index="{{ exchange1c_multistore|length }}">
-                <td class="text-left"><input class="form-control" type="text"
-                                             name="exchange1c_multistore[{{ exchange1c_multistore|length }}][name]"
-                                             value=""/></td>
-                <td class="text-left"><select class="form-control" id="multistore_id"
-                                              name="exchange1c_multistore[{{ exchange1c_multistore|length }}][multistore_id]">
-                        {% for multistore in multistores %}
-                            <option value="{{ multistore['multistore_id'] }}" {{ 
-								multistore['multistore_id'] == config_multistore['multistore_id'] ? 'selected' }}>{{ multistore['name'] }}</option>
-	                    {% endfor %}</td>
-                <td class="text-center">
-                    <button type="button" data-toggle="tooltip" title="{{ lang['button_remove'] }}" class="btn btn-danger"
-                            onclick="confirm('{{ lang['text_confirm'] }}') ? $(this).closest('.clone-row').remove() : false;">
-                        <i class="fa fa-minus-circle"></i></button>
-                </td>
-            </tr-->
         </tbody>
                                     <tfoot>
                                         <tr>
