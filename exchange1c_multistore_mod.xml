@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="utf-8"?>
+<modification>
+  <name>Exchange1C поддержка Multistore</name>
+  <code>cr_exchange1c_multistore_mod</code>
+  <version>1.3</version>
+  <author>Andrey Chesnakov</author>
+  <link>https://clayrabbit.ru</link>
+
+<file path="admin/model/extension/exchange1c.php">
+	<operation>
+      <search><![CDATA[$product_id = $this->db->getLastId();]]></search>
+      <add position="after"><![CDATA[
+$_query = $this->db->query("SELECT multistore_id FROM " . DB_PREFIX . "multistore");
+foreach (array_column($_query->rows, 'multistore_id') as $_id ) {
+         $this->db->query("INSERT INTO " . DB_PREFIX . "product_to_multistore SET product_id = " . (int)$product_id . ", quantity = 0, multistore_id = " . (int)$_id);
+}
+	  ]]></add>
+    </operation>
+	<operation>
+      <search><![CDATA[$this->parseOffers($xml->Предложения, $offers_pack);]]></search>
+      <add position="before"><![CDATA[
+if ($xml->Склады AND $this->config->get('exchange1c_warehouse_quantity_import') AND $this->config->get('exchange1c_multistore')) {
+	$_query = $this->db->query("SELECT multistore_id FROM " . DB_PREFIX . "multistore");
+	$multistores = array_column($_query->rows, 'multistore_id');
+	$exchange1c_multistore = $this->config->get('exchange1c_multistore');
+	$guid2multistore = array_column($exchange1c_multistore, 'multistore_id', 'guid');
+	$_updated = false;
+	
+	foreach ($xml->Склады->Склад as $warehouse) {
+		$_guid = (string)$warehouse->Ид;
+		$_name = htmlentities((string)$warehouse->Наименование, ENT_QUOTES, 'UTF-8');
+		if (isset($guid2multistore[$_guid])) {
+			if (empty($guid2multistore[$_guid])) {
+				$this->log('Не назначен склад ' . $_name . ', guid=' . $_guid);
+			}
+			continue;
+		}
+		$_found = false;
+		foreach ($exchange1c_multistore as &$_row) if (empty($_row['guid']) AND $_row['name'] == $_name) {
+			$_row['guid'] = $_guid;
+			$_found = $_updated = true;
+		}
+		if (!$_found) {
+			$exchange1c_multistore[] = array('guid' => $_guid, 'name' => $_name, 'multistore_id' => '');
+			$_updated = true;
+			$this->log('Добавлен новый склад ' . $_name . ', guid=' . $_guid);
+		}
+	}
+	if ($_updated) {
+      	$this->query("UPDATE `". DB_PREFIX . "setting` SET `value` = '" . $this->db->escape(json_encode($exchange1c_multistore)) . "', `serialized` = 1 WHERE `key` = 'exchange1c_multistore'");
+	}
+	$this->config->set('_guid2multistore', array_filter(array_column($exchange1c_multistore, 'multistore_id', 'guid')));
+}
+	  ]]></add>
+    </operation>
+	<operation>
+      <search><![CDATA[private function parseQuantity($xml) {]]></search>
+      <add position="replace"><![CDATA[private function parseQuantity($xml, &$data) {]]></add>
+    </operation>
+	<operation>
+      <search><![CDATA[return $quantity;]]></search>
+      <add position="before"><![CDATA[
+if ($xml->Склад AND $multistores = $this->config->get('_guid2multistore')) {
+	$data['multistores'] = array();
+	foreach ($xml->Склад as $product_quantity) {
+		if (empty($product_quantity['ИдСклада'])) continue;
+		$_guid = (string)$product_quantity['ИдСклада'];
+		if (isset($data['multistores'][$_guid])) {
+    		$data['multistores'][$_guid] += (float)$product_quantity['КоличествоНаСкладе'];
+		} else {
+    		$data['multistores'][$_guid] = (float)$product_quantity['КоличествоНаСкладе'];
+		}
+	}
+}
+	  ]]></add>
+    </operation>
+	<operation>
+      <search><![CDATA[if ($data['quantity']) {]]></search>
+      <add position="before"><![CDATA[
+foreach ($this->config->get('_guid2multistore') as $_guid => $multistore_id) {
+	$this->db->query("DELETE FROM " . DB_PREFIX . "product_to_multistore WHERE multistore_id = " . (int)$multistore_id . " AND product_id = " . (int)$product_id);
+	$_quantity = isset($data['multistores'][$_guid]) ? $data['multistores'][$_guid] : 0;
+	$this->db->query("INSERT INTO " . DB_PREFIX . "product_to_multistore SET product_id = " . (int)$product_id . ", quantity = " . (int)$_quantity . ", multistore_id = " . (int)$multistore_id);
+}
+$_query = $this->db->query("SELECT SUM(`quantity`) AS total FROM " . DB_PREFIX . "product_to_multistore p2m 
+	LEFT JOIN " . DB_PREFIX . "multistore m USING (multistore_id) WHERE m.status > 0 AND p2m.product_id = " . (int)$product_id);
+$data['quantity'] = $_query->row['total'];
+	  ]]></add>
+    </operation>
+	<!--operation>
+      <search><![CDATA[$modify_fields1 = $this->compareArraysData($data, $old_data, $no_update);]]></search>
+      <add position="before" offset="1"><![CDATA[
+$this->log('multistore1', 2);
+foreach ($this->config->get('_guid2multistore') as $_guid => $multistore_id) {
+	$this->db->query("DELETE FROM " . DB_PREFIX . "product_to_multistore WHERE multistore_id = " . (int)$multistore_id . " AND product_id = " . (int)$product_id);
+	$_quantity = isset($data['multistores'][$_guid]) ? $data['multistores'][$_guid] : 0;
+	$this->db->query("INSERT INTO " . DB_PREFIX . "product_to_multistore SET product_id = " . (int)$product_id . ", quantity = " . (int)$_quantity . ", multistore_id = " . (int)$multistore_id);
+}
+$_query = $this->db->query("SELECT SUM(`quantity`) AS total FROM " . DB_PREFIX . "product_to_multistore WHERE product_id = '" . (int)$product_id . "'"); 
+$data['quantity'] = $_query->row['total'];
+	  ]]></add>
+    </operation>
+	<operation>
+      <search><![CDATA[$fields = $this->prepareQueryProduct($data);]]></search>
+      <add position="before" offset="1"><![CDATA[
+$this->log('multistore2', 2);
+foreach ($this->config->get('_guid2multistore') as $_guid => $multistore_id) {
+	$this->db->query("DELETE FROM " . DB_PREFIX . "product_to_multistore WHERE multistore_id = " . (int)$multistore_id . " AND product_id = " . (int)$product_id);
+	$_quantity = isset($data['multistores'][$_guid]) ? $data['multistores'][$_guid] : 0;
+	$this->db->query("INSERT INTO " . DB_PREFIX . "product_to_multistore SET product_id = " . (int)$product_id . ", quantity = " . (int)$_quantity . ", multistore_id = " . (int)$multistore_id);
+}
+$_query = $this->db->query("SELECT SUM(`quantity`) AS total FROM " . DB_PREFIX . "product_to_multistore WHERE product_id = '" . (int)$product_id . "'"); 
+$data['quantity'] = $_query->row['total'];
+	  ]]></add>
+    </operation-->
+</file>
+  
+<file path="admin/controller/extension/module/exchange1c.php">
+	<operation>
+      <search><![CDATA[$data['currencies'] = $this->model_localisation_currency->getCurrencies();]]></search>
+      <add position="after"><![CDATA[
+//Склады
+$this->load->model('extension/module/multistore');
+$data['multistores'] = $this->model_extension_module_multistore->getMultistores();
+
+if (isset($this->request->post['exchange1c_multistore'])) {
+	$data['exchange1c_multistore'] = $this->request->post['exchange1c_multistore'];
+} else {
+	$data['exchange1c_multistore'] = $this->config->get('exchange1c_multistore');
+	if(empty($data['exchange1c_multistore'])) {
+		$data['exchange1c_multistore'][] = array();
+	}
+}
+      ]]></add>
+    </operation>
+</file>
+  
+<file path="admin/view/template/extension/module/exchange1c.twig">
+	<operation>
+      <search><![CDATA[{{ html_flush_quantity }}]]></search>
+      <add position="after"><![CDATA[
+</div>
+<legend>Склады (multistore)</legend>
+<div class="table-responsive">
+    <table id="exchange1c_multistore" class="table table-bordered table-hover">
+        <thead>
+        <tr>
+            <td class="col-sm-6 text-left">Наименование в 1С</td>
+			<td class="col-sm-6 text-left">GUID</td>
+            <td class="col-sm-6 text-left" style="min-width: 200px;">Склад</td>
+            <td class="text-center" style="width: 50px;">{{ lang['text_action'] }}</td>
+        </tr>
+        </thead>
+        <tbody>
+          {% for config_multistore in exchange1c_multistore %}
+            <tr id="exchange1c_multistore[{{ loop.index0 }}]" class="clone-row" data-index="{{ loop.index0 }}">
+                <td class="text-left"><input class="form-control" type="text"
+                                             name="exchange1c_multistore[{{ loop.index0 }}][name]"
+                                             value="{{ config_multistore['name'] }}"/></td>
+                <td class="text-left"><input class="form-control" type="text" placeholder="будет заполнено автоматически"
+                                             name="exchange1c_multistore[{{ loop.index0 }}][guid]"
+                                             value="{{ config_multistore['guid'] }}"/></td>
+                <td class="text-left"><select class="form-control" id="multistore_id"
+                                              name="exchange1c_multistore[{{ loop.index0 }}][multistore_id]">
+            			<option value=""></option>
+                        {% for multistore in multistores %}
+                            <option value="{{ multistore['multistore_id'] }}" {{ 
+								multistore['multistore_id'] == config_multistore['multistore_id'] ? 'selected' }}>{{ multistore['name'] }}</option>
+	                    {% endfor %}</td>
+                <td class="text-center">
+                    <button type="button" data-toggle="tooltip" title="{{ lang['button_remove'] }}" class="btn btn-danger"
+                            onclick="confirm('{{ lang['text_confirm'] }}') ? $(this).closest('.clone-row').remove() : false;">
+                        <i class="fa fa-minus-circle"></i></button>
+                </td>
+            </tr>
+        {% endfor %}
+            <!--tr id="exchange1c_multistore[{{ exchange1c_multistore|length }}]" class="clone-row" data-index="{{ exchange1c_multistore|length }}">
+                <td class="text-left"><input class="form-control" type="text"
+                                             name="exchange1c_multistore[{{ exchange1c_multistore|length }}][name]"
+                                             value=""/></td>
+                <td class="text-left"><select class="form-control" id="multistore_id"
+                                              name="exchange1c_multistore[{{ exchange1c_multistore|length }}][multistore_id]">
+                        {% for multistore in multistores %}
+                            <option value="{{ multistore['multistore_id'] }}" {{ 
+								multistore['multistore_id'] == config_multistore['multistore_id'] ? 'selected' }}>{{ multistore['name'] }}</option>
+	                    {% endfor %}</td>
+                <td class="text-center">
+                    <button type="button" data-toggle="tooltip" title="{{ lang['button_remove'] }}" class="btn btn-danger"
+                            onclick="confirm('{{ lang['text_confirm'] }}') ? $(this).closest('.clone-row').remove() : false;">
+                        <i class="fa fa-minus-circle"></i></button>
+                </td>
+            </tr-->
+        </tbody>
+                                    <tfoot>
+                                        <tr>
+                                            <td colspan="3"></td>
+                                            <td class="text-center">
+                                                <button type="button" id="btn_add_currency"
+                                                        onclick="addRow($('#exchange1c_multistore'));" data-toggle="tooltip"
+                                                        title="{{ lang['button_add'] }}" class="btn btn-primary"><i
+                                                            class="fa fa-plus-circle"></i></button>
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+
+    </table>
+<script>
+    function addRow($parent) {
+		let $first = $parent.find(".clone-row").first(),
+			$elem = $first.clone(),
+			index = Math.max(...$first.parent().children(".clone-row").map(function() {
+    			return $(this).data("index");
+			}).get()) || 0,
+			id = $first.attr("id").replace("[" + $first.data("index") + "]", "[" + (index + 1) + "]");
+
+		$elem.attr("id", id);
+		$elem.attr("data-index", index + 1);
+		$elem.find("input[name], select[name]").each(function() {
+            $(this).val("");
+			$(this).attr('name', $(this).attr('name').replace($first.attr('id'), id));
+		});
+
+        $first.parent().append($elem);
+    }
+</script>
+      ]]></add>
+    </operation>
+</file>
+
+</modification>
