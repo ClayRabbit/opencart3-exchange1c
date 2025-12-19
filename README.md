@@ -1,5 +1,5 @@
 
-   #  Модуль opencart2-exchange1c от автора KirilLoveVE адаптирован мной для OPENCART 3.x
+   #  Модуль opencart2-exchange1c от автора KirilLoveVE адаптирован [ATropichev](https://github.com/ATropichev) для OPENCART 3.x
    
    Источник :  https://github.com/KirilLoveVE 
    
